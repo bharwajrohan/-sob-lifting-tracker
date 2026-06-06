@@ -4,7 +4,6 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { get, set as setIDB } from 'idb-keyval';
 
 export type SyncStatus = 'online' | 'syncing' | 'offline' | 'error';
-
 export let globalSyncStatus: SyncStatus = 'online';
 const syncListeners: (() => void)[] = [];
 let activeSyncCount = 0;
@@ -61,7 +60,6 @@ export const isNonEmptyData = (value: any): boolean => {
 
 export const useSyncStatus = () => {
   const [status, setStatus] = useState(globalSyncStatus);
-
   useEffect(() => {
     const listener = () => setStatus(globalSyncStatus);
     syncListeners.push(listener);
@@ -70,20 +68,17 @@ export const useSyncStatus = () => {
       if (index > -1) syncListeners.splice(index, 1);
     };
   }, []);
-
   return status;
 };
 
 export const getFirestorePath = (key: string) => {
   if (key === 'tracker_entryLogs_v7') return { collection: 'entryLogs', doc: 'data' };
   if (key === 'tracker_data_v7') return { collection: 'operations', doc: 'data' };
-
   if (key === 'tracker_users') return { collection: 'users', doc: 'data' };
   if (key === 'tracker_currentUser') return { collection: 'currentUser', doc: 'session' };
   if (key === 'tracker_isAuthenticated') return { collection: 'auth', doc: 'status' };
   if (key === 'tracker_userRole') return { collection: 'auth', doc: 'role' };
   if (key === 'tracker_roleTabsMap') return { collection: 'auth', doc: 'roleTabs' };
-
   if (key === 'tracker_oem_configs') return { collection: 'settings', doc: 'oemConfigs' };
   if (key === 'tracker_transportName') return { collection: 'settings', doc: 'transportName' };
   if (key === 'tracker_transportLogo') return { collection: 'settings', doc: 'transportLogo' };
@@ -91,24 +86,19 @@ export const getFirestorePath = (key: string) => {
   if (key === 'tracker_customTableHeaders') return { collection: 'settings', doc: 'tableHeaders' };
   if (key === 'tracker_manageByBranchMap') return { collection: 'settings', doc: 'branchMap' };
   if (key === 'tracker_masterRoutes_v7') return { collection: 'routes', doc: 'master' };
-
   if (key === 'tracker_fleet_data') return { collection: 'fleet', doc: 'data' };
-
   if (key === 'tracker_incentive_rates_v1') return { collection: 'incentives', doc: 'rates' };
   if (key === 'tracker_incentive_edits_v1') return { collection: 'incentives', doc: 'edits' };
   if (key === 'tracker_manual_incentive_rows_v1') return { collection: 'incentives', doc: 'manualRows' };
   if (key === 'incentive_tracker_start') return { collection: 'incentives', doc: 'startDate' };
   if (key === 'incentive_tracker_end') return { collection: 'incentives', doc: 'endDate' };
   if (key.startsWith('tracker_incentive_target_')) return { collection: 'incentives', doc: key.replace('tracker_incentive_target_', 'target_') };
-
   if (key.startsWith('tracker_cal_weeks_')) return { collection: 'weeks', doc: key.replace('tracker_cal_weeks_', '') };
   if (key.startsWith('tracker_cal_daily_')) return { collection: 'daily', doc: key.replace('tracker_cal_daily_', '') };
   if (key.startsWith('tracker_cal_config_')) return { collection: 'calendarConfig', doc: key.replace('tracker_cal_config_', '') };
-
   if (key.startsWith('tracker_')) {
     return { collection: 'appData', doc: key.replace('tracker_', '') };
   }
-
   return { collection: 'appData', doc: key };
 };
 
@@ -123,7 +113,6 @@ const localTimestampKey = (key: string) => `${key}_lastUpdated`;
 const readLocalCache = async <T>(key: string) => {
   let localData: T | undefined;
   let localTimestamp = -1;
-
   const storedString = window.localStorage.getItem(key);
   if (storedString) {
     try {
@@ -134,7 +123,6 @@ const readLocalCache = async <T>(key: string) => {
     const storedTimestamp = window.localStorage.getItem(localTimestampKey(key));
     localTimestamp = storedTimestamp ? Number(storedTimestamp) || -1 : -1;
   }
-
   if (localData === undefined) {
     try {
       localData = await get<T>(key);
@@ -150,7 +138,6 @@ const readLocalCache = async <T>(key: string) => {
       log.error(`Failed to read IndexedDB cache for ${key}`, error);
     }
   }
-
   return { localData, localTimestamp };
 };
 
@@ -161,7 +148,6 @@ const persistLocalCache = async <T>(key: string, data: T, timestamp: number) => 
   } catch (error) {
     log.error(`Failed to write localStorage for ${key}`, error);
   }
-
   try {
     await setIDB(key, data);
     await setIDB(localTimestampKey(key), timestamp);
@@ -186,9 +172,22 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
   const [error, setError] = useState<Error | null>(null);
 
   const isMountedRef = useRef(true);
+
+  // FIX 1: localChangesRef — sirf tab sync karo jab user ne khud data change kiya ho
+  // Pehle yeh ref set hota tha setValue mein, lekin sync effect mein check hi nahi tha!
   const localChangesRef = useRef(false);
+
   const syncPendingRef = useRef(false);
   const syncTimeoutRef = useRef<number | null>(null);
+
+  // FIX 2: isSelfWriteRef — jab hum khud localStorage mein likhte hain,
+  // toh 'storage' event fire hota tha aur dobara setStoredValue call hota tha → infinite loop
+  // Ab is flag se apni hi write ko ignore karenge
+  const isSelfWriteRef = useRef(false);
+
+  // FIX 3: initialValue ko ref mein store karo taaki har render pe effect re-run na ho
+  // Agar initialValue object/array hai toh dependency array mein dalne se infinite loop banta tha
+  const initialValueRef = useRef(initialValue);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -197,6 +196,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     };
   }, []);
 
+  // INIT EFFECT — Firestore se data load karo (sirf ek baar key change hone pe)
   useEffect(() => {
     let isCancelled = false;
 
@@ -206,7 +206,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
         const { localData, localTimestamp } = await readLocalCache<T>(key);
         const localIsNonEmpty = isNonEmptyData(localData);
 
-        let selectedData: T = initialValue;
+        let selectedData: T = initialValueRef.current; // FIX 3: ref use kar rahe hain
         let selectedTimestamp = localTimestamp;
 
         if (localData !== undefined) {
@@ -215,7 +215,6 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
         }
 
         beginGlobalSync();
-
         const { collection, doc: docId } = getFirestorePath(key);
         const docRef = doc(db, collection, docId);
         const docSnap = await getDoc(docRef);
@@ -226,7 +225,6 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
           const cloudData = firestoreData.data as T | undefined;
           const cloudTimestamp = typeof firestoreData.lastUpdated === 'number' ? firestoreData.lastUpdated : -1;
           const cloudIsNonEmpty = isNonEmptyData(cloudData);
-
           log.debug(`Cloud values for ${collection}/${docId}`, { cloudTimestamp, cloudIsNonEmpty });
 
           if (cloudIsNonEmpty && (cloudTimestamp > localTimestamp || !localIsNonEmpty)) {
@@ -268,14 +266,17 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     };
 
     loadData();
-
     return () => {
       isCancelled = true;
     };
-  }, [key, initialValue]);
+  }, [key]); // FIX 3: initialValue dependency hata di — ref se le rahe hain ab
 
+  // SYNC EFFECT — sirf tab Firestore mein likho jab user ne khud change kiya ho
   useEffect(() => {
     if (!isInitialized) return;
+
+    // FIX 1: Yeh check pehle missing tha — isi wajah se init load ke baad bhi sync fire hota tha
+    if (!localChangesRef.current) return;
 
     if (syncTimeoutRef.current) {
       window.clearTimeout(syncTimeoutRef.current);
@@ -285,18 +286,15 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
       syncPendingRef.current = true;
       try {
         beginGlobalSync();
-
         const cleanPayload = JSON.parse(JSON.stringify(storedValue));
         const timestamp = Date.now();
         const { collection, doc: docId } = getFirestorePath(key);
         const docRef = doc(db, collection, docId);
-
         log.info(`Syncing ${key} to Firestore`, { collection, docId, timestamp });
         log.debug(`Sync payload for ${key}`, cleanPayload);
-
         await setDoc(docRef, { data: cleanPayload, lastUpdated: timestamp }, { merge: true });
         await persistLocalCache(key, cleanPayload, timestamp);
-        localChangesRef.current = false;
+        localChangesRef.current = false; // sync ho gaya, flag reset karo
         endGlobalSync('online');
       } catch (syncError) {
         log.error(`Error syncing ${key} to Firestore`, syncError);
@@ -314,6 +312,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     };
   }, [key, storedValue, isInitialized]);
 
+  // Page band hone se pehle warn karo agar sync pending hai
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       if (syncPendingRef.current) {
@@ -322,14 +321,19 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
         return event.returnValue;
       }
     };
-
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
+  // Cross-tab sync — dusre tab mein change hone pe yahan bhi update karo
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
       if (event.key === key && event.newValue) {
+        // FIX 2: Apni hi write ko ignore karo — warna infinite loop banta tha
+        if (isSelfWriteRef.current) {
+          isSelfWriteRef.current = false;
+          return;
+        }
         try {
           const parsed = JSON.parse(event.newValue);
           setStoredValue(parsed);
@@ -339,17 +343,21 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
         }
       }
     };
-
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
   }, [key]);
 
+  // setValue — user ka data change
   const setValue = useCallback((value: T | ((val: T) => T)) => {
+    // FIX 1: User ne change kiya hai — ab sync hoga
     localChangesRef.current = true;
+
     try {
       setStoredValue(prevStored => {
         const valueToStore = value instanceof Function ? value(prevStored) : value;
         try {
+          // FIX 2: Apni write se pehle flag set karo
+          isSelfWriteRef.current = true;
           window.localStorage.setItem(key, JSON.stringify(valueToStore));
           const timestamp = Date.now();
           window.localStorage.setItem(localTimestampKey(key), String(timestamp));
@@ -359,11 +367,9 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
         } catch (writeError) {
           log.error(`Failed to persist local cache for ${key}`, writeError);
         }
-
         setIDB(key, valueToStore).catch(error => {
           log.error(`Failed to persist IndexedDB cache for ${key}`, error);
         });
-
         return valueToStore;
       });
     } catch (setError) {
