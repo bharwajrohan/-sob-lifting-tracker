@@ -1470,7 +1470,7 @@ export default function App() {
   const [userRole, setUserRole] = useLocalStorage<UserRole>('tracker_userRole', 'Admin');
   const [currentUser, setCurrentUser] = useLocalStorage<{ username: string, loginTime: number, role: string } | null>('tracker_currentUser', null);
   const [users, setUsers] = useLocalStorage<{ username: string; password?: string; role: string }[]>('tracker_users', [{ username: 'admin', password: 'admin123', role: 'Admin' }]);
-  const [activityLogs, setActivityLogs, isActivityLogsLoaded] = useIndexedDB<{ id: string, username: string, action: string, timestamp: number }[]>('tracker_activityLogs', []);
+  const [activityLogs, setActivityLogs, isActivityLogsLoaded] = useLocalStorage<{ id: string, username: string, action: string, timestamp: number }[]>('tracker_activityLogs', []);
 
   const [roleTabsMap, setRoleTabsMap] = useLocalStorage<Record<string, string[]>>('tracker_roleTabsMap', {
     'Admin': ['dashboard', 'data-entry', 'targets', 'today-target', 'fleet-planner', 'fleet', 'plant-planner', 'zone', 'branch-performance', 'incentive', 'admin', 'calendar', 'sob-download'],
