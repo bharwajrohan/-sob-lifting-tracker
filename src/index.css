@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .hide-arrows::-webkit-outer-spin-button,
+  .hide-arrows::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .hide-arrows[type=number] {
+    -moz-appearance: textfield;
+    appearance: none;
+  }
+}
+
+/* Ensure Recharts ResponsiveContainer fills its container properly */
+.recharts-responsive-container, .recharts-wrapper, .recharts-surface {
+  min-height: 0;
+}
+
+/* ─── Standardized Chart Wrapper Heights ──────────────────────────────────
+   Use these classes on the div wrapping <ResponsiveContainer height="100%">
+   to get consistent, symmetric chart heights across all tabs.
+────────────────────────────────────────────────────────────────────────── */
+.chart-wrapper    { height: 320px; width: 100%; }
+.chart-wrapper-sm { height: 210px; width: 100%; }
+.chart-wrapper-lg { height: 380px; width: 100%; }
+
+/* Consistent inner padding for card sections that hold charts */
+.chart-card-body  { padding: 16px; }

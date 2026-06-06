@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">STPL SOB TRACKER</string>
+    <string name="title_activity_main">STPL SOB TRACKER</string>
+    <string name="package_name">com.stpl.sobliftingtracker</string>
+    <string name="custom_url_scheme">com.stpl.sobliftingtracker</string>
+</resources>

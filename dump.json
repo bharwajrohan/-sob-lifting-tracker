@@ -1,0 +1,19 @@
+{
+  "data": [
+    {
+      "plant": "Chennai",
+      "statecity": "Central",
+      "lifted": 1200,
+      "city": "-",
+      "month": "June",
+      "zone": "Domestic",
+      "oem": "Hyundai",
+      "date": "2026-06-04",
+      "id": "1780679061707",
+      "trucks": 0,
+      "trailers": 15,
+      "year": 2026,
+      "username": "admin"
+    }
+  ]
+}
