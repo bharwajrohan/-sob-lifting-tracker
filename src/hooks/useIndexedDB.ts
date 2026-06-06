@@ -8,6 +8,8 @@ export function useIndexedDB<T>(key: string, initialValue: T): [T, (val: T | ((p
   const [storedValue, setStoredValue] = useState<T>(initialValue);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  // FIX 1: localChangesRef — sirf tab sync karo jab user ne khud change kiya ho
   const isLocallyModifiedRef = useRef(false);
   const pendingWritesRef = useRef(0);
 
@@ -53,12 +55,12 @@ export function useIndexedDB<T>(key: string, initialValue: T): [T, (val: T | ((p
             return;
           }
         }
-        
-        // 2. If Firestore doesn't have it, fall back to IndexedDB
+
+        // Firestore mein nahi hai — IndexedDB check karo
         if (localIsNonEmpty) {
           if (isMounted) setStoredValue(localData as T);
         } else {
-          // Migration check: check if it exists in localStorage
+          // localStorage migration check
           const localItem = window.localStorage.getItem(key);
           if (localItem) {
             try {
@@ -74,8 +76,8 @@ export function useIndexedDB<T>(key: string, initialValue: T): [T, (val: T | ((p
         endGlobalSync('online');
       } catch (error) {
         console.error(`Error loading ${key} from Firestore:`, error);
-        
-        // Fall back to IndexedDB if Firestore fails
+
+        // Firestore fail — IndexedDB fallback
         try {
           const item = await get<T>(key);
           if (item !== undefined) {
@@ -106,16 +108,19 @@ export function useIndexedDB<T>(key: string, initialValue: T): [T, (val: T | ((p
       }
     }
     loadData();
-    
+
     return () => {
       isMounted = false;
     };
   }, [key]);
 
-  // Sync to Firestore when state changes
+  // FIX 1: Sirf tab Firestore mein likho jab user ne khud change kiya ho
   useEffect(() => {
     if (!isInitialized) return;
-    
+
+    // FIX 1: Yeh check missing tha — ab sirf user changes sync honge
+    if (!isLocallyModifiedRef.current) return;
+
     let isPending = true;
 
     const timeoutId = setTimeout(async () => {
@@ -123,12 +128,12 @@ export function useIndexedDB<T>(key: string, initialValue: T): [T, (val: T | ((p
         beginGlobalSync();
         const { collection, doc: docId } = getFirestorePath(key);
         const docRef = doc(db, collection, docId);
-        // Strip undefined values which cause Firestore to throw an error
         const cleanPayload = JSON.parse(JSON.stringify(storedValue));
         const timestamp = Date.now();
-        console.log(`[DEBUG] Syncing to Firestore: total records=${cleanPayload.length}, totalTarget=${cleanPayload.reduce((sum: number, r: any) => sum + (r.target || 0), 0)}`);
         await setDoc(docRef, { data: cleanPayload, lastUpdated: timestamp }, { merge: true });
-        await set(`${key}_lastUpdated`, timestamp); // Update local timestamp on success
+        await set(`${key}_lastUpdated`, timestamp);
+        // FIX 1: Sync ho gaya — flag reset karo
+        isLocallyModifiedRef.current = false;
         endGlobalSync('online');
       } catch (error) {
         console.error(`Error syncing ${key} to Firestore:`, error);
@@ -136,8 +141,8 @@ export function useIndexedDB<T>(key: string, initialValue: T): [T, (val: T | ((p
       } finally {
         isPending = false;
       }
-    }, 1000); // 1s debounce since IDB structures are larger
-    
+    }, 1000);
+
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isPending || pendingWritesRef.current > 0) {
         e.preventDefault();
@@ -154,15 +159,14 @@ export function useIndexedDB<T>(key: string, initialValue: T): [T, (val: T | ((p
     };
   }, [key, storedValue, isInitialized]);
 
-  // Provide a setter that updates state and IndexedDB
+  // setValue — user ka data change
   const setValue = (value: T | ((prev: T) => T)) => {
+    // FIX 1: User ne change kiya — ab sync hoga
     isLocallyModifiedRef.current = true;
     try {
       setStoredValue(prevStored => {
         const valueToStore = value instanceof Function ? value(prevStored) : value;
         const timestamp = Date.now();
-        const arr = valueToStore as any[];
-        console.log(`[DEBUG] Saving to IDB: total records=${arr.length}, totalTarget=${arr.reduce((sum: number, r: any) => sum + (r.target || 0), 0)}`);
         pendingWritesRef.current += 1;
         set(key, valueToStore)
           .then(() => set(`${key}_lastUpdated`, timestamp))
