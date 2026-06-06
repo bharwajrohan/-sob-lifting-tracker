@@ -1511,7 +1511,7 @@ export default function App() {
     });
   }, []);
 
-  const [allData, setAllData, isDataLoaded] = useIndexedDB<TransportRecord[]>('tracker_data_v7', initialData);
+  const [allData, setAllData, isDataLoaded] = useLocalStorage<TransportRecord[]>('tracker_data_v7', initialData);
   const [masterRoutes, setMasterRoutes] = useLocalStorage<MasterRoute[]>('tracker_masterRoutes_v7', DEFAULT_MASTER_ROUTES);
 
   const data = React.useMemo(() => {
@@ -1836,7 +1836,7 @@ export default function App() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
 
   // Data Entry State
-  const [allEntryLogs, setAllEntryLogs, isEntryLogsLoaded] = useIndexedDB<{ id: string, date: string, month: string, year: number, oem: string, plant: string, statecity: string, zone?: string, city: string, lifted: number, trailers?: number, trucks?: number, username?: string }[]>('tracker_entryLogs_v7', []);
+  const [allEntryLogs, setAllEntryLogs, isEntryLogsLoaded] = useLocalStorage<{ id: string, date: string, month: string, year: number, oem: string, plant: string, statecity: string, zone?: string, city: string, lifted: number, trailers?: number, trucks?: number, username?: string }[]>('tracker_entryLogs_v7', []);
 
   useEffect(() => {
     const MIGRATION_VERSION = "v2";
