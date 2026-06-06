@@ -87,10 +87,7 @@ export const getFirestorePath = (key: string) => {
   if (key === 'tracker_manageByBranchMap') return { collection: 'settings', doc: 'branchMap' };
   if (key === 'tracker_masterRoutes_v7') return { collection: 'routes', doc: 'master' };
   if (key === 'tracker_fleet_data') return { collection: 'fleet', doc: 'data' };
-<<<<<<< Updated upstream
   if (key === 'tracker_activityLogs') return { collection: 'appData', doc: 'activityLogs' };
-=======
->>>>>>> Stashed changes
   if (key === 'tracker_incentive_rates_v1') return { collection: 'incentives', doc: 'rates' };
   if (key === 'tracker_incentive_edits_v1') return { collection: 'incentives', doc: 'edits' };
   if (key === 'tracker_manual_incentive_rows_v1') return { collection: 'incentives', doc: 'manualRows' };
