@@ -228,7 +228,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
           const cloudIsNonEmpty = isNonEmptyData(cloudData);
           log.debug(`Cloud values for ${collection}/${docId}`, { cloudTimestamp, cloudIsNonEmpty });
 
-          if (cloudIsNonEmpty && (cloudTimestamp > localTimestamp || !localIsNonEmpty)) {
+          if (cloudIsNonEmpty && (cloudTimestamp >= localTimestamp || !localIsNonEmpty)) {
             selectedData = cloudData as T;
             selectedTimestamp = cloudTimestamp;
             log.info(`Using Firestore data for ${key}`);

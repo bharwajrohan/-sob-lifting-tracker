@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext } from 'react';
 import { useLocalStorage } from './useSyncedStorage';
 
@@ -11,7 +10,7 @@ export type TargetViewMode =
   | 'AO Zone + State/City';
 
 export interface OemConfig {
-  id: string; // unique string or just OEM since it's 1-to-1
+  id: string;
   oem: string;
   targetType: 'Standard' | 'Weekly' | 'Percentage';
   viewMode?: TargetViewMode;
@@ -38,7 +37,6 @@ export const getColumnVisibilityStrategy = (viewMode?: TargetViewMode): ColumnVi
     case 'AO Zone + State/City':
       return { showZone: true, showWeek: false, showStateCity: true };
     default:
-      // Default fallback
       return { showZone: true, showWeek: true, showStateCity: true };
   }
 };
@@ -53,23 +51,47 @@ const OemConfigContext = createContext<OemConfigContextType | undefined>(undefin
 
 const OEM_CONFIGS_KEY = 'tracker_oem_configs';
 
+// FIX: Default viewMode = 'AO Zone + State/City' — dono dikhenge
+const DEFAULT_OEM_CONFIGS: OemConfig[] = [
+  { id: 'BMW', oem: 'BMW', targetType: 'Standard', viewMode: 'AO Zone Wise' },
+  { id: 'Citroën', oem: 'Citroën', targetType: 'Standard', viewMode: 'AO Zone Wise' },
+  { id: 'Honda', oem: 'Honda', targetType: 'Standard', viewMode: 'AO Zone Wise' },
+  { id: 'Hyundai', oem: 'Hyundai', targetType: 'Standard', viewMode: 'AO Zone Wise' },
+  { id: 'Jeep', oem: 'Jeep', targetType: 'Standard', viewMode: 'AO Zone Wise' },
+  { id: 'Kia', oem: 'Kia', targetType: 'Standard', viewMode: 'AO Zone Wise' },
+  { id: 'MG', oem: 'MG', targetType: 'Standard', viewMode: 'AO Zone Wise' },
+  { id: 'MSIL', oem: 'MSIL', targetType: 'Standard', viewMode: 'AO Zone Wise' },
+  { id: 'Mahindra', oem: 'Mahindra', targetType: 'Standard', viewMode: 'AO Zone Wise' },
+  { id: 'New Holland', oem: 'New Holland', targetType: 'Standard', viewMode: 'AO Zone Wise' },
+  { id: 'RNAIPL', oem: 'RNAIPL', targetType: 'Standard', viewMode: 'AO Zone Wise' },
+  { id: 'TATA', oem: 'TATA', targetType: 'Standard', viewMode: 'AO Zone Wise' },
+  { id: 'Toyota', oem: 'Toyota', targetType: 'Standard', viewMode: 'AO Zone Wise' },
+  { id: 'Škoda Auto Volkswagen', oem: 'Škoda Auto Volkswagen', targetType: 'Standard', viewMode: 'AO Zone Wise' },
+];
+
 export const OemConfigProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [oemConfigs, setOemConfigs] = useLocalStorage<OemConfig[]>(OEM_CONFIGS_KEY, []);
+  const [rawOemConfigs, setOemConfigs] = useLocalStorage<OemConfig[]>(OEM_CONFIGS_KEY, DEFAULT_OEM_CONFIGS);
+
+  const oemConfigs = rawOemConfigs && rawOemConfigs.length > 0 ? rawOemConfigs : DEFAULT_OEM_CONFIGS;
 
   const addOrUpdateConfig = (config: OemConfig) => {
     setOemConfigs(prev => {
-      const existingIdx = prev.findIndex(c => c.oem === config.oem);
+      const list = prev && prev.length > 0 ? prev : DEFAULT_OEM_CONFIGS;
+      const existingIdx = list.findIndex(c => c.oem === config.oem);
       if (existingIdx >= 0) {
-        const next = [...prev];
+        const next = [...list];
         next[existingIdx] = config;
         return next;
       }
-      return [...prev, config];
+      return [...list, config];
     });
   };
 
   const deleteConfig = (oem: string) => {
-    setOemConfigs(prev => prev.filter(c => c.oem !== oem));
+    setOemConfigs(prev => {
+      const list = prev && prev.length > 0 ? prev : DEFAULT_OEM_CONFIGS;
+      return list.filter(c => c.oem !== oem);
+    });
   };
 
   return (

@@ -1692,6 +1692,11 @@ export default function App() {
 
   // Synchronize LocalStorage with masterData.json updates automatically
   useEffect(() => {
+    // FIX: Sirf tab run karo jab Firestore se data load ho chuka ho
+    // isDataLoaded = isLoading (true=still loading, false=done)
+    // Warna fresh browser mein Firestore ka data aane se pehle empty data Firestore pe push ho jaata tha
+    if (isDataLoaded) return;
+
     const MASTER_DATA_SIG = "sig_v12_" + JSON.stringify(rawMasterData).length + "_" + rawMasterData.length;
     const currentSig = localStorage.getItem('tracker_masterdata_sig');
 
@@ -1773,7 +1778,7 @@ export default function App() {
       // 4. Save the signature so this runs exactly once
       localStorage.setItem('tracker_masterdata_sig', MASTER_DATA_SIG);
     }
-  }, [setMasterRoutes, setManageByBranchMap, setAllData]);
+  }, [isDataLoaded, setMasterRoutes, setManageByBranchMap, setAllData]);
 
   const getManageByBranch = (oem: string, plant: string): string => {
     const fromMap = (manageByBranchMap || {})[oem]?.[plant]?.trim();
@@ -1842,8 +1847,11 @@ export default function App() {
     const MIGRATION_VERSION = "v2";
     const currentVersion = localStorage.getItem('tracker_migration_version_logs');
 
-    if (currentVersion !== MIGRATION_VERSION) {
-      const getMappedOEM = (oldOEM: string): string => {
+    // FIX: Sirf tab migrate karo jab data fully loaded ho Firestore se
+    // Aur migration version already set hai toh bilkul mat chedo
+    if (isEntryLogsLoaded || currentVersion === MIGRATION_VERSION) return;
+
+    const getMappedOEM = (oldOEM: string): string => {
         const map: Record<string, string> = {
           "Maruti MSIL": "MSIL",
           "Tata Motors": "TATA",
@@ -1857,7 +1865,7 @@ export default function App() {
         return map[oldOEM] || oldOEM;
       };
 
-      const getMappedPlant = (oem: string, oldPlant: string): string => {
+    const getMappedPlant = (oem: string, oldPlant: string): string => {
         const newOEM = getMappedOEM(oem);
         const p = (oldPlant || '').trim();
         if (newOEM === "MSIL") {
@@ -1871,16 +1879,15 @@ export default function App() {
         return p;
       };
 
-      const logsList = Array.isArray(allEntryLogs) ? allEntryLogs : [];
-      const migrated = logsList.map(d => ({
-        ...d,
-        oem: getMappedOEM(d.oem || ''),
-        plant: getMappedPlant(d.oem || '', d.plant || '')
-      }));
-      setAllEntryLogs(migrated);
-      localStorage.setItem('tracker_migration_version_logs', MIGRATION_VERSION);
-    }
-  }, [allEntryLogs, setAllEntryLogs]);
+    const logsList = Array.isArray(allEntryLogs) ? allEntryLogs : [];
+    const migrated = logsList.map(d => ({
+      ...d,
+      oem: getMappedOEM(d.oem || ''),
+      plant: getMappedPlant(d.oem || '', d.plant || '')
+    }));
+    setAllEntryLogs(migrated);
+    localStorage.setItem('tracker_migration_version_logs', MIGRATION_VERSION);
+  }, [isEntryLogsLoaded]);
 
   const entryLogs = React.useMemo(() => {
     const logsList = Array.isArray(allEntryLogs) ? allEntryLogs : [];
@@ -2287,7 +2294,7 @@ export default function App() {
     };
   }, []);
 
-  const [isAuthenticated, setIsAuthenticated] = useLocalStorage('tracker_isAuthenticated', false);
+  const [isAuthenticated, setIsAuthenticated, isAuthLoaded] = useLocalStorage('tracker_isAuthenticated', false);
 
   useEffect(() => {
     if (isDataLoaded && isEntryLogsLoaded && isActivityLogsLoaded) {
@@ -3955,6 +3962,20 @@ export default function App() {
     if (isCeil) return Math.ceil(value / trailerCapacity);
     return convertToViewUnits(value, view);
   };
+
+  if (isAuthLoaded) {
+    return (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#F8FAFC]">
+        <div className="flex items-center gap-3 text-[#005689]">
+          <svg className="animate-spin h-8 w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          <span className="text-xl font-semibold text-[#1E293B]">Loading...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Login users={users} onLogin={(user) => {
@@ -6348,7 +6369,7 @@ export default function App() {
                     <h3 className={`font-semibold ${todayTargetData.totalShortfall > 0 ? 'text-[#991B1B]' : 'text-[#166534]'}`}>Overall Shortfall</h3>
                   </div>
                   <div className={`text-3xl font-bold ${todayTargetData.totalShortfall > 0 ? 'text-[#B91C1C]' : 'text-[#15803D]'}`}>
-                    {Math.ceil(todayTargetData.totalShortfall).toLocaleString()} <span className="text-sm font-medium opacity-80">cars</span>
+                    {Math.abs(Math.ceil(todayTargetData.totalShortfall)).toLocaleString()} <span className="text-sm font-medium opacity-80">cars</span>
                   </div>
                   <p className={`text-xs mt-2 ${todayTargetData.totalShortfall > 0 ? 'text-[#991B1B]/70' : 'text-[#166534]/70'}`}>
                     {todayTargetData.totalShortfall > 0 ? 'Behind schedule' : 'Ahead of schedule'}
