@@ -3799,8 +3799,11 @@ export default function App() {
     );
 
     if (isDuplicate) {
-      addAlert("Duplicate entry detected for today with the same OEM, Plant, and Destination.");
-      return;
+      // FIX-4: warn but let the user decide — they may be adding a second genuine lift on the same day
+      const proceed = window.confirm(
+        "A duplicate entry was found for today with the same OEM, Plant, and Destination.\n\nDo you want to save it anyway?\n(Click OK to save, Cancel to go back and edit the existing entry instead.)"
+      );
+      if (!proceed) return;
     }
 
     // Update main data
@@ -3929,20 +3932,35 @@ export default function App() {
       return;
     }
 
+    const newTrucks = editingLog.trucks;
+    if (isNaN(newTrucks) || newTrucks < 0) {
+      addAlert("Please enter a valid number for trucks.");
+      return;
+    }
     const diff = newLifted - originalLog.lifted;
     const diffTrailers = newTrailers - (originalLog.trailers || 0);
+    const diffTrucks = newTrucks - (originalLog.trucks || 0);
 
     setData(prev => prev.map(item => {
-      if (item.year === originalLog.year && item.month === originalLog.month && item.oem === originalLog.oem && item.plant === originalLog.plant && item.statecity === originalLog.statecity) {
-        return { ...item, lifted: Math.max(0, item.lifted + diff), liftedTrailers: Math.max(0, (item.liftedTrailers || 0) + diffTrailers) };
+      // FIX-2: also match on zone (same as handleEntrySubmit) to avoid updating wrong record
+      // when same statecity exists in multiple zones
+      const zoneMatch = !originalLog.zone || !item.zone || item.zone === originalLog.zone;
+      if (item.year === originalLog.year && item.month === originalLog.month && item.oem === originalLog.oem && item.plant === originalLog.plant && item.statecity === originalLog.statecity && zoneMatch) {
+        return {
+          ...item,
+          lifted: Math.max(0, item.lifted + diff),
+          liftedTrailers: Math.max(0, (item.liftedTrailers || 0) + diffTrailers),
+          // FIX-1: also update liftedTrucks so Source A stays in sync
+          liftedTrucks: Math.max(0, (item.liftedTrucks || 0) + diffTrucks),
+        };
       }
       return item;
     }));
 
-    setEntryLogs(prev => prev.map(l => l.id === editingLog.id ? { ...l, lifted: newLifted, trailers: newTrailers } : l));
+    setEntryLogs(prev => prev.map(l => l.id === editingLog.id ? { ...l, lifted: newLifted, trailers: newTrailers, trucks: newTrucks } : l));
     setEditingLog(null);
     addAlert("Entry updated successfully.");
-    logActivity(`Edited data entry for ${originalLog.statecity}: cars ${originalLog.lifted}->${newLifted}, trailers ${originalLog.trailers}->${newTrailers}`);
+    logActivity(`Edited data entry for ${originalLog.statecity}: cars ${originalLog.lifted}->${newLifted}, trailers ${originalLog.trailers || 0}->${newTrailers}, trucks ${originalLog.trucks || 0}->${newTrucks}`);
   };
 
 
@@ -3950,12 +3968,18 @@ export default function App() {
   const filteredEntryPreviewLogs = useMemo(() => {
     const selectedOEM = entryForm.oem || '';
     const selectedPlant = entryForm.plant || '';
+    const selectedMonth = entryForm.month || '';
+    const selectedYear = entryForm.year ? Number(entryForm.year) : 0;
     return entryLogs.filter(log => {
       const matchesOEM = !selectedOEM || log.oem === selectedOEM;
       const matchesPlant = !selectedPlant || log.plant === selectedPlant;
-      return matchesOEM && matchesPlant;
-    }).slice(0, 10);
-  }, [entryForm.oem, entryForm.plant, entryLogs]);
+      // FIX-3: filter by month+year so all entries for this period are visible (no 10-entry cap)
+      const matchesMonth = !selectedMonth || log.month === selectedMonth;
+      const matchesYear = !selectedYear || log.year === selectedYear;
+      return matchesOEM && matchesPlant && matchesMonth && matchesYear;
+    });
+    // Removed .slice(0, 10) — users can now see and edit all entries for the selected period
+  }, [entryForm.oem, entryForm.plant, entryForm.month, entryForm.year, entryLogs]);
 
   const formatValue = (value: number, view: 'car' | 'trailer', isCeil = false) => {
     if (view === 'car') return Math.round(value);
